@@ -1,5 +1,8 @@
 # vet
 
+[![CI](https://github.com/cemini23/vet/actions/workflows/ci.yml/badge.svg)](https://github.com/cemini23/vet/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Static veto-gate auditor for **agent skills**, **briefs**, and **prompts** before they ship.
 
 Part of the [agent toolkit](https://github.com/cemini23/agent-toolkit-demo): **vet** (your artifacts) → **phase0** (their repos) → **wikilint** (your wiki).
