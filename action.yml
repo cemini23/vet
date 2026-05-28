@@ -1,0 +1,49 @@
+name: vet
+description: Static veto-gate audit for agent skills, briefs, and prompts
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  path:
+    description: File or directory to audit
+    required: true
+  profile:
+    description: Audit profile (brief, skillmd, minimal). Default auto-detects SKILL.md
+    required: false
+    default: ""
+  strict:
+    description: Treat warnings as REJECT
+    required: false
+    default: "false"
+  root:
+    description: Repository root for @path cross-link resolution
+    required: false
+    default: "."
+  glob:
+    description: Glob when path is a directory
+    required: false
+    default: "**/*.md"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install vet from action ref
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+    - name: Run vet
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARGS=( "${{ inputs.path }}" )
+        if [ -n "${{ inputs.profile }}" ]; then
+          ARGS+=( --profile "${{ inputs.profile }}" )
+        fi
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          ARGS+=( --strict )
+        fi
+        ARGS+=( --root "${{ inputs.root }}" --glob "${{ inputs.glob }}" )
+        vet "${ARGS[@]}"

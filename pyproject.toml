@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-vet"
-version = "0.1.0"
+version = "0.2.0"
 description = "Static veto-gate auditor for agent skills, briefs, and prompts"
 readme = "README.md"
 license = "MIT"

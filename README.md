@@ -2,97 +2,67 @@
 
 Static veto-gate auditor for **agent skills**, **briefs**, and **prompts** before they ship.
 
-Battle-tested patterns from production agent curation workflows (MedSkillAudit-style veto gates, adoption-brief discipline, Anthropic SKILL.md compliance). Stdlib-only. No API keys. No network calls.
+Part of the [agent toolkit](https://github.com/cemini23/agent-toolkit-demo): **vet** (your artifacts) → **phase0** (their repos) → **wikilint** (your wiki).
+
+Stdlib-only · No API keys · No network calls
 
 ## Install
 
 ```bash
 pip install git+https://github.com/cemini23/vet.git
-# or from a clone:
-pip install -e .
+pip install -e .                    # from clone
+# PyPI (after configuring trusted publishing):
+# pip install agent-vet
 ```
 
 ## Quick start
 
 ```bash
-# Adoption / design brief (default profile)
 vet briefs/my-adoption-brief.md
-
-# Anthropic SKILL.md or Cursor skill
-vet .cursor/skills/my-skill/SKILL.md
-vet path/to/SKILL.md --profile skillmd
-
-# Portable markdown subset
-vet docs/agent-runbook.md --profile minimal
-
-# JSON for CI
-vet briefs/*.md --json
-
-# Strict: warnings become REJECT
-vet briefs/*.md --strict
+vet .cursor/skills/my-skill/SKILL.md          # auto profile: skillmd
+vet docs/runbook.md --profile minimal
+vet skills/ --strict --json
 ```
 
 ## Profiles
 
 | Profile | Best for | Checks |
 |---------|----------|--------|
-| `brief` | Tool-adoption / design briefs | 12 static checks: sections, crosslinks, citations, freshness tags, regime disclosure, adoption completeness, risk table, phasing, claim-evidence, abstract quality |
-| `skillmd` | `SKILL.md` agent skills | Required frontmatter (`name`, `description`), body structure, recommended metadata, prose hygiene |
-| `minimal` | General agent markdown | Crosslinks, citations, freshness, frontmatter, prose |
+| `brief` | Tool-adoption / design briefs | 12 static checks |
+| `skillmd` | `SKILL.md` / Cursor skills | Frontmatter, body, metadata, prose |
+| `minimal` | General agent markdown | Crosslinks, citations, freshness, prose |
 
-## Cross-link resolution
-
-`@concepts/foo.md` links resolve against:
-
-1. `--root` (default: cwd or `VET_ROOT`)
-2. `{root}/wiki` if present
-3. Extra paths via `--link-dir wiki --link-dir docs`
-
-```bash
-vet briefs/ship.md --root . --link-dir wiki
-```
-
-## Exit codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | PASS |
-| 1 | WARN |
-| 2 | REJECT (veto gate or `--strict`) |
-| 3 | ERROR (file not found / unreadable) |
-
-## GitHub Action
+## GitHub Action (recommended)
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: actions/setup-python@v5
+- uses: cemini23/vet@v0.2.0
   with:
-    python-version: "3.12"
-- run: pip install git+https://github.com/cemini23/vet.git
-- run: vet skills/ --profile skillmd --strict
+    path: .
+    profile: skillmd
+    strict: "true"
+    glob: "**/SKILL.md"
 ```
+
+The action installs `vet` from the tagged ref — no PyPI required.
+
+See `examples/workflows/vet-skills.yml` and the [demo repo](https://github.com/cemini23/agent-toolkit-demo).
 
 ## Veto gates
 
-Two gates can hard-stop a document regardless of score:
-
-- **Operational Stability** — parseable structure, required sections present
+- **Operational Stability** — required structure missing
 - **Scientific Integrity** — dangling cross-links, undisclosed evaluation comparisons
 
-## Lineage
+## Exit codes
 
-Clean-room patterns adapted from:
-
-- MedSkillAudit veto-gate framework (MIT)
-- Academic peer-review checklist ports (MIT)
-- Anthropic Agent Skills frontmatter spec
-
-Domain-specific logic (trading, prod execution) is intentionally **not** included — this tool is agent-ecosystem neutral.
+`0` PASS · `1` WARN · `2` REJECT · `3` ERROR
 
 ## Related
 
-- [phase0](https://github.com/cemini23/phase0) — third-party tool adoption audits (coming next)
+- [phase0](https://github.com/cemini23/phase0) — third-party repo adoption audits
+- [wikilint](https://github.com/cemini23/wikilint) — markdown wiki health
+- [agent-toolkit-demo](https://github.com/cemini23/agent-toolkit-demo) — CI template
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT

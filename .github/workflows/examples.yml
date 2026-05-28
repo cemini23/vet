@@ -1,0 +1,26 @@
+name: Examples CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Good skill passes
+        run: vet examples/good-skill/SKILL.md --profile skillmd --strict
+      - name: Bad skill fails
+        run: |
+          vet examples/bad-skill/SKILL.md --profile skillmd --strict && exit 1 || test $? -eq 2
+      - name: Good brief passes
+        run: vet examples/good-brief.md --profile brief --root examples
+      - name: Bad brief fails
+        run: |
+          vet examples/bad-brief.md --profile brief --root examples && exit 1 || test $? -eq 2

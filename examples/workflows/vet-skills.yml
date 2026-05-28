@@ -1,0 +1,21 @@
+# Copy to .github/workflows/vet-skills.yml in your repo
+name: Vet agent skills
+
+on:
+  pull_request:
+    paths:
+      - ".cursor/skills/**"
+      - "skills/**"
+      - "**/SKILL.md"
+
+jobs:
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cemini23/vet@v0.1.0
+        with:
+          path: .
+          profile: skillmd
+          strict: "true"
+          glob: "**/SKILL.md"
