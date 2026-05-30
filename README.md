@@ -62,9 +62,9 @@ See `examples/workflows/vet-skills.yml` and the [demo repo](https://github.com/c
 
 ## Related
 
-- [phase0](https://github.com/cemini23/phase0) — third-party repo adoption audits
-- [wikilint](https://github.com/cemini23/wikilint) — markdown wiki health
-- [agent-toolkit-demo](https://github.com/cemini23/agent-toolkit-demo) — CI template
+- Methodology newsletter: [Outlier Weekly](https://outlierweekly.substack.com)
+- Agent meta-wiki: [cemini-claude-code-CCC](https://github.com/cemini23/cemini-claude-code-CCC)
+- Toolkit: [phase0](https://github.com/cemini23/phase0) · [wikilint](https://github.com/cemini23/wikilint) · [agent-toolkit-demo](https://github.com/cemini23/agent-toolkit-demo) · [ara-schema](https://github.com/cemini23/ara-schema)
 
 ## License
 
