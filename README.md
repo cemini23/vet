@@ -67,6 +67,17 @@ See `examples/workflows/vet-skills.yml` and the [demo repo](https://github.com/c
 - Agent meta-wiki: [cemini-claude-code-CCC](https://github.com/cemini23/cemini-claude-code-CCC)
 - Toolkit: [phase0](https://github.com/cemini23/phase0) · [wikilint](https://github.com/cemini23/wikilint) · [agent-toolkit-demo](https://github.com/cemini23/agent-toolkit-demo) · [ara-schema](https://github.com/cemini23/ara-schema)
 
+
+## Support
+
+Voluntary tips fund open research and tooling. **Donation-only addresses** — not trading or production wallets.
+
+| Chain family | Address |
+|--------------|---------|
+| **EVM** (Ethereum, Polygon, Base, Arbitrum, …) | `0x444C5C2eC439E0382aa5a17F70313c536BcC5D58` |
+| **Solana / SVM** | `J4zNn4hK9jTrKBFY8sbAGJHLoZvXvQf4B9pQSbSrocZE` |
+
+
 ## License
 
 MIT
