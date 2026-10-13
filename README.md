@@ -56,6 +56,16 @@ See `examples/workflows/vet-skills.yml` and the [demo repo](https://github.com/c
 - **Operational Stability** — required structure missing
 - **Scientific Integrity** — dangling cross-links, undisclosed evaluation comparisons
 
+### How cross-links resolve
+
+A `@path/to/file.md` reference resolves against the audit root and its `wiki/`
+directory. A reference that starts with a **wiki alias** — such as
+`@osint-wiki/sources/foo.md` — resolves against the repo that alias names. `vet`
+reads the alias table in that repo's `CLAUDE.md`. Each alias maps to two bases:
+the wiki directory, and the directory that owns it, so a file outside `wiki/`
+such as `@osint-wiki/LESSONS.md` also resolves. An alias that names no existing
+directory is ignored, so an unknown alias stays dangling.
+
 ## Exit codes
 
 `0` PASS · `1` WARN · `2` REJECT · `3` ERROR

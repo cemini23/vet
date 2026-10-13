@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from vet import __version__
@@ -99,14 +100,9 @@ def main(argv: list[str] | None = None) -> int:
 
     for path in files:
         profile = _detect_profile(path, args.profile)
-        config = AuditConfig(
-            root=config_base.root,
-            link_dirs=config_base.link_dirs,
-            profile=profile,
-            nv_age_days=config_base.nv_age_days,
-            strict=config_base.strict,
-            pass_threshold=config_base.pass_threshold,
-        )
+        # Copy every field from the base config. Enumerating fields by hand silently
+        # dropped newly added ones (wiki_aliases), so derive the copy instead.
+        config = replace(config_base, profile=profile)
         try:
             report = audit_file(path, config)
         except OSError as exc:
