@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vet.checks.base import check_crosslinks, check_prose_quality
+from vet.checks._regex import LICENSE_CLAIM_RE
+from vet.checks.base import check_crosslinks, check_prose_quality, check_regime_disclosure
 from vet.checks.skillmd import _parse_frontmatter
 from vet.cli import main as cli_main
 from vet.config import AuditConfig
@@ -148,3 +149,54 @@ def test_non_utf8_file_does_not_crash_the_run(tmp_path):
     good = FIXTURES / "pass_brief.md"
     code = cli_main([str(bad), str(good), "--profile", "brief"])
     assert code == 3
+
+
+# --- F-03: regime disclosure on ordinary comparative English ----------------
+
+
+def test_comparative_prose_is_not_a_regime_claim():
+    text = "A local Unix socket is better than polling over HTTP and wins on tail latency."
+    assert check_regime_disclosure(text).severity == "pass"
+
+
+def test_comparative_prose_in_a_code_fence_is_ignored():
+    text = "Prose.\n\n```\nthis beats the baseline\n```\n"
+    assert check_regime_disclosure(text).severity == "pass"
+
+
+def test_quantitative_comparison_without_disclosure_warns_but_does_not_veto():
+    text = "The new sizing method beats the baseline on Sharpe ratio in backtest."
+    result = check_regime_disclosure(text)
+    assert result.severity == "warn"
+    assert not result.veto_reason
+
+
+def test_quantitative_comparison_with_disclosure_passes():
+    text = "It beats the baseline on Sharpe ratio in backtest, broken out per-regime."
+    assert check_regime_disclosure(text).severity == "pass"
+
+
+# --- F-04: claim evidence on ordinary English -------------------------------
+
+
+def test_proprietary_and_unlicensed_are_not_licence_claims():
+    assert not LICENSE_CLAIM_RE.search("Keep proprietary customer keys in the vault.")
+    assert not LICENSE_CLAIM_RE.search("The unlicensed scraper must be removed.")
+    assert LICENSE_CLAIM_RE.search("Released under MIT.")
+
+
+def test_frontmatter_version_is_not_a_body_claim(tmp_path):
+    p = tmp_path / "note-adoption.md"
+    p.write_text(
+        "---\n"
+        "title: Note\n"
+        "metadata:\n"
+        '  version: "v9.9"\n'
+        "---\n\n"
+        "## Target\n\nclaude.ai\n\n"
+        "## Summary\n\nAdopt it. [Source: https://example.com/a]\n\n"
+        "## Sources\n\n- [Source: https://example.com/a]\n"
+    )
+    report = audit_file(p, AuditConfig.from_paths(tmp_path, profile="brief"))
+    claim = [c for c in report.checks if c.name == "claim_evidence"][0]
+    assert claim.severity == "pass", claim.detail

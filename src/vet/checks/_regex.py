@@ -28,7 +28,7 @@ SOURCES_SECTION_ALIASES = {
 
 LICENSE_CLAIM_RE = re.compile(
     r"\b(MIT|Apache-?2\.0|AGPL-?3\.0|GPL-?3\.0|GPL-?2\.0|BSD-?2|BSD-?3|MPL-?2\.0|"
-    r"LGPL|ISC|Unlicense|proprietary|unlicensed)\b",
+    r"LGPL|ISC|Unlicense)\b",
     re.IGNORECASE,
 )
 STAR_COUNT_RE = re.compile(r"\b\d{1,3}(?:,\d{3})*\s*(?:stars?|★|⭐)\b", re.IGNORECASE)
@@ -88,6 +88,26 @@ REGIME_SCOPE_NARROWING = [
     r"\bpilot\b",
     r"\bproof of concept\b",
     r"\bcase study\b",
+]
+# A comparison only needs regime disclosure when the document actually carries
+# quantitative evaluation evidence. Without one of these, "better than" is
+# ordinary English, not a research claim.
+REGIME_QUANT_CONTEXT = [
+    r"\bback-?test",
+    r"\bSharpe\b",
+    r"\bCAGR\b",
+    r"\bRMSE\b",
+    r"\bMAE\b",
+    r"\bIC\b",
+    r"\bp-value\b",
+    r"\bdrawdown\b",
+    r"\bwin rate\b",
+    r"\bhit rate\b",
+    r"\bKelly\b",
+    r"\bturnover\b",
+    r"\bslippage\b",
+    r"\balpha\b",
+    r"\bSharpe ratio\b",
 ]
 
 PHASE_SECTION_RE = re.compile(r"^#{2,3}\s+Phase\s*\d", re.MULTILINE | re.IGNORECASE)

@@ -16,6 +16,7 @@ from vet.checks._regex import (
     NEEDS_VERIF_RE,
     PHASE_SECTION_RE,
     REGIME_DISCLOSURE_PATTERNS,
+    REGIME_QUANT_CONTEXT,
     REGIME_SCOPE_NARROWING,
     REGIME_TRIGGER_PATTERNS,
     RELEASE_DATE_RE,
@@ -44,6 +45,14 @@ def strip_code(text: str) -> str:
     and literal `@path.md` samples are not read as real prose or real links.
     """
     return _INLINE_CODE_RE.sub("", _FENCE_RE.sub("\n", text))
+
+
+_FRONTMATTER_RE = re.compile(r"\A---[ \t]*\r?\n.*?\n---[ \t]*\r?\n", re.DOTALL)
+
+
+def strip_frontmatter(text: str) -> str:
+    """Drop a leading YAML block so metadata is not read as a body claim."""
+    return _FRONTMATTER_RE.sub("", text, count=1)
 
 
 def parse_document(text: str) -> list[str]:
@@ -267,16 +276,18 @@ def check_frontmatter(text: str) -> CheckResult:
 
 
 def check_regime_disclosure(text: str) -> CheckResult:
-    triggered = any(re.search(p, text, re.IGNORECASE) for p in REGIME_TRIGGER_PATTERNS)
-    if not triggered:
+    prose = strip_code(strip_frontmatter(text))
+    triggered = any(re.search(p, prose, re.IGNORECASE) for p in REGIME_TRIGGER_PATTERNS)
+    quantitative = any(re.search(p, prose, re.IGNORECASE) for p in REGIME_QUANT_CONTEXT)
+    if not triggered or not quantitative:
         return CheckResult(
             name="regime_disclosure",
             severity="pass",
             score_weight=0.10,
             score_earned=0.10,
-            detail="No evaluation-comparison claims detected",
+            detail="No quantitative evaluation-comparison claim detected",
         )
-    disclosed = any(re.search(p, text, re.IGNORECASE) for p in REGIME_DISCLOSURE_PATTERNS)
+    disclosed = any(re.search(p, prose, re.IGNORECASE) for p in REGIME_DISCLOSURE_PATTERNS)
     if disclosed:
         return CheckResult(
             name="regime_disclosure",
@@ -285,7 +296,7 @@ def check_regime_disclosure(text: str) -> CheckResult:
             score_earned=0.10,
             detail="Evaluation-comparison claim with regime disclosure",
         )
-    narrowed = any(re.search(p, text, re.IGNORECASE) for p in REGIME_SCOPE_NARROWING)
+    narrowed = any(re.search(p, prose, re.IGNORECASE) for p in REGIME_SCOPE_NARROWING)
     if narrowed:
         return CheckResult(
             name="regime_disclosure",
@@ -296,14 +307,14 @@ def check_regime_disclosure(text: str) -> CheckResult:
         )
     return CheckResult(
         name="regime_disclosure",
-        severity="veto",
+        severity="warn",
         score_weight=0.10,
-        score_earned=0.0,
-        detail="Evaluation-comparison claim without regime disclosure",
-        veto_reason=(
-            "Scientific Integrity — comparison claim lacks regime disclosure "
-            "(per-regime breakdown or explicit scope narrowing)"
+        score_earned=0.05,
+        detail=(
+            "Comparison claim without regime disclosure — add a per-regime "
+            "breakdown or narrow the scope explicitly"
         ),
+        evidence=["regime disclosure missing"],
     )
 
 
@@ -545,7 +556,7 @@ def check_claim_evidence(text: str, target: str) -> CheckResult:
             detail="N/A — not an adoption-decision brief",
         )
 
-    scan_text = re.sub(r"```[\s\S]*?```", "", text)
+    scan_text = strip_code(strip_frontmatter(text))
     claim_patterns = [
         ("license", LICENSE_CLAIM_RE),
         ("stars", STAR_COUNT_RE),
