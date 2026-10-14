@@ -5,7 +5,7 @@ import re
 SECTION_HEAD_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 CROSSLINK_RE = re.compile(r"@([a-zA-Z0-9_\-/]+\.md)\b")
 CITATION_RE = re.compile(r"\[Sources?:\s*([^\]]+)\]")
-NEEDS_VERIF_RE = re.compile(r"\[NEEDS VERIFICATION\s+(\d{4}-\d{2}-\d{2})\]")
+NEEDS_VERIF_RE = re.compile(r"\[NEEDS VERIFICATION(?:\s+(\d{4}-\d{2}-\d{2}))?\]")
 TODO_RE = re.compile(r"\b(TODO|FIXME|XXX)\b(?=\s*[:(\[]|\s+[-—]|\s*$)", re.MULTILINE)
 EMOJI_RE = re.compile(
     "["

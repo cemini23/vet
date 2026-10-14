@@ -6,10 +6,10 @@ branding:
 
 inputs:
   path:
-    description: File or directory to audit
+    description: File or directory to audit. Several paths may be separated by spaces or newlines.
     required: true
   profile:
-    description: Audit profile (brief, skillmd, minimal). Default auto-detects SKILL.md
+    description: Audit profile (brief, minimal, prompt, skillmd). Default auto-detects SKILL.md
     required: false
     default: ""
   strict:
@@ -24,6 +24,22 @@ inputs:
     description: Glob when path is a directory
     required: false
     default: "**/*.md"
+  link-dir:
+    description: Extra directory for @path cross-link resolution (space separated)
+    required: false
+    default: ""
+  nv-age-days:
+    description: Flag [NEEDS VERIFICATION] tags older than N days
+    required: false
+    default: ""
+  pass-threshold:
+    description: Minimum score for PASS when no warnings
+    required: false
+    default: ""
+  json:
+    description: Emit a single JSON document instead of text
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -37,8 +53,11 @@ runs:
     - name: Run vet
       shell: bash
       run: |
-        set -euo pipefail
-        ARGS=( "${{ inputs.path }}" )
+        set -uo pipefail
+        ARGS=()
+        # Split the path input on whitespace so more than one path can be passed.
+        read -r -a PATHS <<< "${{ inputs.path }}"
+        ARGS+=( "${PATHS[@]}" )
         if [ -n "${{ inputs.profile }}" ]; then
           ARGS+=( --profile "${{ inputs.profile }}" )
         fi
@@ -46,4 +65,21 @@ runs:
           ARGS+=( --strict )
         fi
         ARGS+=( --root "${{ inputs.root }}" --glob "${{ inputs.glob }}" )
+        if [ -n "${{ inputs.link-dir }}" ]; then
+          read -r -a LINK_DIRS <<< "${{ inputs.link-dir }}"
+          for d in "${LINK_DIRS[@]}"; do
+            ARGS+=( --link-dir "$d" )
+          done
+        fi
+        if [ -n "${{ inputs.nv-age-days }}" ]; then
+          ARGS+=( --nv-age-days "${{ inputs.nv-age-days }}" )
+        fi
+        if [ -n "${{ inputs.pass-threshold }}" ]; then
+          ARGS+=( --pass-threshold "${{ inputs.pass-threshold }}" )
+        fi
+        if [ "${{ inputs.json }}" = "true" ]; then
+          ARGS+=( --json )
+        fi
+        echo "vet ${ARGS[*]}"
+        set -e
         vet "${ARGS[@]}"

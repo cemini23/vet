@@ -25,7 +25,6 @@ PROFILES: dict[str, list[str]] = {
     "minimal": [
         "required_sections_soft",
         "crosslinks",
-        "citations",
         "needs_verification_freshness",
         "prose_quality",
         "frontmatter",

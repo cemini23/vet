@@ -62,9 +62,10 @@ def parse_document(text: str) -> list[str]:
 def check_required_sections(
     text: str, sections: list[str], *, strict_critical: bool
 ) -> CheckResult:
-    section_set = set(sections)
-    missing_critical = CRITICAL_SECTIONS - section_set
-    has_sources = bool(SOURCES_SECTION_ALIASES & section_set)
+    # Heading case is the author's choice: "## SUMMARY" is still the Summary section.
+    lowered = {s.strip().lower() for s in sections}
+    missing_critical = {c for c in CRITICAL_SECTIONS if c.lower() not in lowered}
+    has_sources = bool({a.strip().lower() for a in SOURCES_SECTION_ALIASES} & lowered)
 
     if strict_critical and missing_critical:
         return CheckResult(
@@ -78,6 +79,21 @@ def check_required_sections(
                 "Operational Stability — missing required sections "
                 f"{sorted(missing_critical)}"
             ),
+        )
+    # A bare heading satisfied the old check. Require real content beneath it.
+    empty_sections = []
+    for crit in sorted(CRITICAL_SECTIONS):
+        actual = next((s for s in sections if s.strip().lower() == crit.lower()), None)
+        if actual and not (_section_body(text, (actual,)) or "").strip():
+            empty_sections.append(crit)
+    if strict_critical and empty_sections:
+        return CheckResult(
+            name="required_sections",
+            severity="warn",
+            score_weight=0.25,
+            score_earned=0.17,
+            detail=f"Section heading present but empty: {empty_sections}",
+            evidence=empty_sections,
         )
     if not has_sources and strict_critical:
         return CheckResult(
@@ -151,24 +167,31 @@ def check_crosslinks(text: str, config: AuditConfig) -> CheckResult:
 
 
 def check_citations(text: str, sections: list[str]) -> CheckResult:
-    inline_matches = CITATION_RE.findall(text)
+    inline_matches = CITATION_RE.findall(strip_code(text))
     has_sources_section = bool(SOURCES_SECTION_ALIASES & set(sections))
+    sources_body = _section_body(text, tuple(SOURCES_SECTION_ALIASES)) or ""
+    entries = [
+        ln
+        for ln in sources_body.splitlines()
+        if ln.strip().startswith(("-", "*", "|")) or "](" in ln
+    ]
 
-    if has_sources_section and not inline_matches:
-        return CheckResult(
-            name="citations",
-            severity="pass",
-            score_weight=0.10,
-            score_earned=0.10,
-            detail="Sources section present; inline citations optional",
-        )
-    if not inline_matches and not has_sources_section:
+    if not has_sources_section and not inline_matches:
         return CheckResult(
             name="citations",
             severity="warn",
             score_weight=0.10,
             score_earned=0.03,
             detail="No Sources section and no inline [Source: ...] tags",
+        )
+    # A bare "## Sources" heading used to satisfy this check while citing nothing.
+    if has_sources_section and not entries and not inline_matches:
+        return CheckResult(
+            name="citations",
+            severity="warn",
+            score_weight=0.10,
+            score_earned=0.03,
+            detail="Sources section present but cites nothing",
         )
     weak = [c for c in inline_matches if len(c.strip()) < 8]
     if weak:
@@ -186,7 +209,7 @@ def check_citations(text: str, sections: list[str]) -> CheckResult:
         score_weight=0.10,
         score_earned=0.10,
         detail=f"{len(inline_matches)} inline citation(s)"
-        + (" + Sources section" if has_sources_section else ""),
+        + (f" + Sources section ({len(entries)} entries)" if has_sources_section else ""),
     )
 
 
@@ -204,7 +227,11 @@ def check_needs_verification(
             detail="No [NEEDS VERIFICATION] tags",
         )
     stale = []
+    undated = 0
     for d in matches:
+        if not d:
+            undated += 1
+            continue
         try:
             tag_date = datetime.strptime(d, "%Y-%m-%d").date()
             age = (today - tag_date).days
@@ -212,13 +239,17 @@ def check_needs_verification(
                 stale.append(f"{d} ({age}d old)")
         except ValueError:
             stale.append(f"{d} (unparseable date)")
+    if undated:
+        stale.append(
+            f"{undated} undated [NEEDS VERIFICATION] tag(s) — add a YYYY-MM-DD date"
+        )
     if stale:
         return CheckResult(
             name="needs_verification_freshness",
             severity="warn",
             score_weight=0.10,
             score_earned=0.05,
-            detail=f"{len(stale)}/{len(matches)} NV tag(s) older than {max_age_days}d",
+            detail=f"{len(stale)} stale or undated NV tag(s) of {len(matches)} total",
             evidence=stale,
         )
     return CheckResult(
@@ -433,10 +464,10 @@ def check_risk_discipline(text: str, target: str) -> CheckResult:
         if len(bullets) >= 2:
             return CheckResult(
                 name="risk_discipline",
-                severity="warn",
+                severity="pass",
                 score_weight=0.03,
-                score_earned=0.02,
-                detail=f"{len(bullets)} risk bullets (table format earns full credit)",
+                score_earned=0.03,
+                detail=f"{len(bullets)} structured risk bullets",
             )
         return CheckResult(
             name="risk_discipline",
@@ -452,11 +483,17 @@ def check_risk_discipline(text: str, target: str) -> CheckResult:
     rows = table_lines[2:]
     risk_count = len(rows)
 
+    # Look up the mitigation column by header name. Reading the last cell missed
+    # an empty mitigation whenever Severity sat in the final column.
+    header_cells = [c.strip().lower() for c in table_lines[0].strip("|").split("|")]
+    mit_index = next(
+        (i for i, h in enumerate(header_cells) if "mitigation" in h), None
+    )
     empty_mitigations = 0
-    if has_mitigation:
+    if mit_index is not None:
         for r in rows:
             cells = [c.strip() for c in r.strip("|").split("|")]
-            if cells and not cells[-1]:
+            if mit_index < len(cells) and not cells[mit_index]:
                 empty_mitigations += 1
 
     score = 0.03
@@ -531,19 +568,20 @@ def check_phasing(text: str, sections: list[str], target: str) -> CheckResult:
             score_earned=0.015,
             detail=f"{phase_count} Phase sections (no explicit success criteria section)",
         )
+    # One phase with stated success criteria is a complete plan, not a defect.
     if has_success_criteria:
         return CheckResult(
             name="phasing",
-            severity="warn",
+            severity="pass",
             score_weight=0.02,
-            score_earned=0.01,
-            detail=f"Only {phase_count} Phase section (consider Phase 2/3 scoping)",
+            score_earned=0.02,
+            detail=f"{phase_count} Phase section + success/promotion criteria",
         )
     return CheckResult(
         name="phasing",
         severity="warn",
         score_weight=0.02,
-        score_earned=0.005,
+        score_earned=0.01,
         detail=f"Only {phase_count} Phase section, no success/promotion criteria",
     )
 
@@ -686,29 +724,12 @@ def check_abstract_synthesis(text: str, target: str) -> CheckResult:
             score_earned=0.04,
             detail=f"Summary {n_words}w + effort estimate + verdict opener",
         )
-    if signals_present == 2:
-        return CheckResult(
-            name="abstract_synthesis",
-            severity="warn",
-            score_weight=0.04,
-            score_earned=0.025,
-            detail=f"2/3 abstract signals; missing: {missing}",
-            evidence=missing,
-        )
-    if signals_present == 1:
-        return CheckResult(
-            name="abstract_synthesis",
-            severity="warn",
-            score_weight=0.04,
-            score_earned=0.01,
-            detail=f"1/3 abstract signals; missing: {missing}",
-            evidence=missing,
-        )
+    # Summary shape is a house style, not a correctness gate: advisory only.
     return CheckResult(
         name="abstract_synthesis",
-        severity="warn",
+        severity="info",
         score_weight=0.04,
-        score_earned=0.0,
-        detail=f"0/3 abstract signals; missing: {missing}",
+        score_earned=0.04,
+        detail=f"{signals_present}/3 abstract signals; missing: {missing}",
         evidence=missing,
     )

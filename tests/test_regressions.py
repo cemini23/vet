@@ -9,7 +9,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from vet.checks._regex import LICENSE_CLAIM_RE
-from vet.checks.base import check_crosslinks, check_prose_quality, check_regime_disclosure
+from vet.checks.base import (
+    check_citations,
+    check_crosslinks,
+    check_needs_verification,
+    check_phasing,
+    check_prose_quality,
+    check_regime_disclosure,
+    check_required_sections,
+    check_risk_discipline,
+)
 from vet.checks.skillmd import _parse_frontmatter
 from vet.cli import main as cli_main
 from vet.config import AuditConfig
@@ -335,3 +344,78 @@ def test_undeclared_missing_link_still_vetoes(tmp_path):
     config = AuditConfig.from_paths(tmp_path, profile="minimal")
     result = check_crosslinks("See @briefs/missing.md.", config)
     assert result.severity == "veto"
+
+
+# --- F-10: remaining check corrections --------------------------------------
+
+
+def test_empty_sources_section_warns():
+    text = "## Sources\n\n## Risks\n\nsomething\n"
+    assert check_citations(text, ["Sources", "Risks"]).severity == "warn"
+
+
+def test_populated_sources_section_passes():
+    text = "## Sources\n\n- [Source: https://example.com/a]\n"
+    assert check_citations(text, ["Sources"]).severity == "pass"
+
+
+def test_undated_needs_verification_warns():
+    result = check_needs_verification("Claim here [NEEDS VERIFICATION].", 30)
+    assert result.severity == "warn"
+    assert any("undated" in e for e in result.evidence)
+
+
+def test_dated_fresh_needs_verification_passes():
+    from datetime import UTC, datetime
+
+    today = datetime.now(UTC).date().isoformat()
+    assert check_needs_verification(f"Claim [{today}]", 30).severity == "pass"
+
+
+def test_structured_risk_bullets_pass():
+    text = (
+        "## Risks & mitigations\n\n"
+        "- **Drift**: pin the versions\n"
+        "- **Cost**: cap the spend\n"
+    )
+    assert check_risk_discipline(text, "note-adoption.md").severity == "pass"
+
+
+def test_empty_mitigation_is_caught_when_severity_is_the_last_column():
+    text = (
+        "## Risks & mitigations\n\n"
+        "| Risk | Mitigation | Severity |\n"
+        "|------|------------|----------|\n"
+        "| Drift |  | High |\n"
+        "| Cost | cap the spend | Low |\n"
+    )
+    result = check_risk_discipline(text, "note-adoption.md")
+    assert result.severity == "warn"
+    assert any("empty mitigation" in i for i in result.evidence)
+
+
+def test_single_phase_with_success_criteria_passes():
+    text = "## Phase 1\n\nDo the thing.\n\n## Success criteria\n\nIt works.\n"
+    result = check_phasing(text, ["Phase 1", "Success criteria"], "note-adoption.md")
+    assert result.severity == "pass"
+
+
+def test_empty_critical_section_warns():
+    text = "## Target\n\n## Summary\n\nAdopt this tool.\n\n## Sources\n\n- [Source: x]\n"
+    result = check_required_sections(text, ["Target", "Summary", "Sources"], strict_critical=True)
+    assert result.severity == "warn"
+    assert "empty" in result.detail.lower()
+
+
+def test_short_but_present_critical_section_is_accepted():
+    text = "## Target\n\nclaude.ai\n\n## Summary\n\nAdopt this.\n\n## Sources\n\n- [Source: x]\n"
+    result = check_required_sections(text, ["Target", "Summary", "Sources"], strict_critical=True)
+    assert result.severity == "pass"
+
+
+def test_heading_case_is_ignored():
+    text = "## TARGET\n\nclaude.ai\n\n## SUMMARY\n\nAdopt this.\n\n## SOURCES\n\n- [Source: x]\n"
+    result = check_required_sections(
+        text, ["TARGET", "SUMMARY", "SOURCES"], strict_critical=True
+    )
+    assert result.severity == "pass"
