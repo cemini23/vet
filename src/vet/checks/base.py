@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from vet.checks._regex import (
     ARCHITECTURE_SECTION_TITLES,
@@ -119,7 +119,10 @@ def check_crosslinks(text: str, config: AuditConfig) -> CheckResult:
             detail="No @path cross-links to validate",
         )
 
-    dangling = sorted({m for m in matches if not config.resolve_link(m)})
+    # A link into a declared but unmounted federation alias is not a defect: CI
+    # checks out one repo, so the sibling wiki is legitimately absent there.
+    dangling = sorted({m for m in matches if config.link_status(m) == "missing"})
+    unmounted = sorted({m for m in matches if config.link_status(m) == "unmounted"})
     if dangling:
         return CheckResult(
             name="crosslinks",
@@ -133,12 +136,17 @@ def check_crosslinks(text: str, config: AuditConfig) -> CheckResult:
                 "point to non-existent files"
             ),
         )
+    suffix = (
+        f"; {len(unmounted)} alias link(s) skipped (sibling repo not mounted)"
+        if unmounted
+        else ""
+    )
     return CheckResult(
         name="crosslinks",
         severity="pass",
         score_weight=0.15,
         score_earned=0.15,
-        detail=f"{len(matches)} cross-link(s) all resolve",
+        detail=f"{len(matches)} cross-link(s) all resolve{suffix}",
     )
 
 
@@ -185,7 +193,7 @@ def check_citations(text: str, sections: list[str]) -> CheckResult:
 def check_needs_verification(
     text: str, max_age_days: int, today: date | None = None
 ) -> CheckResult:
-    today = today or date.today()
+    today = today or datetime.now(UTC).date()
     matches = NEEDS_VERIF_RE.findall(text)
     if not matches:
         return CheckResult(
@@ -607,6 +615,30 @@ def check_claim_evidence(text: str, target: str) -> CheckResult:
         score_earned=score,
         detail=f"{anchored}/{total_claims} claims anchored ({coverage:.0%})",
         evidence=unanchored_samples[:5],
+    )
+
+
+def check_prompt_body(text: str) -> CheckResult:
+    """A prompt carries no required section names — only real instruction text.
+
+    Brief checks demand ## Target and ## Summary. Applying those to a prompt file
+    rejected every prompt outright, so prompts get their own minimal profile.
+    """
+    body = strip_code(strip_frontmatter(text)).strip()
+    if len(body) < 40:
+        return CheckResult(
+            name="prompt_body",
+            severity="warn",
+            score_weight=0.65,
+            score_earned=0.25,
+            detail=f"Prompt body is very short ({len(body)} chars)",
+        )
+    return CheckResult(
+        name="prompt_body",
+        severity="pass",
+        score_weight=0.65,
+        score_earned=0.65,
+        detail=f"Prompt body present ({len(body)} chars)",
     )
 
 

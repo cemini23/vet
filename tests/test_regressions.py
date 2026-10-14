@@ -200,3 +200,138 @@ def test_frontmatter_version_is_not_a_body_claim(tmp_path):
     report = audit_file(p, AuditConfig.from_paths(tmp_path, profile="brief"))
     claim = [c for c in report.checks if c.name == "claim_evidence"][0]
     assert claim.severity == "pass", claim.detail
+
+
+# --- F-09: the prompt profile ----------------------------------------------
+
+
+def test_prompt_file_detects_the_prompt_profile(tmp_path):
+    p = tmp_path / "research-prompt.md"
+    p.write_text("# Research Prompt\n\nYou are an analyst. Investigate and cite sources.\n")
+    report = audit_file(p, AuditConfig.from_paths(tmp_path, profile="prompt"))
+    assert report.verdict == "PASS", report.summary
+
+
+def test_prompt_file_is_not_forced_through_brief_sections(tmp_path):
+    p = tmp_path / "prompts" / "research.md"
+    p.parent.mkdir()
+    p.write_text("# Research Prompt\n\nYou are an analyst. Investigate and cite sources.\n")
+    assert cli_main([str(p)]) == 0
+
+
+def test_prompt_profile_requires_a_real_body(tmp_path):
+    p = tmp_path / "prompt.md"
+    p.write_text("# x\n")
+    report = audit_file(p, AuditConfig.from_paths(tmp_path, profile="prompt"))
+    assert report.verdict == "WARN"
+
+
+# --- F-10: skillmd body accepts H2 and ignores fenced comments --------------
+
+
+def test_skillmd_body_accepts_an_h2_opener(tmp_path):
+    p = tmp_path / "SKILL.md"
+    p.write_text(
+        "---\n"
+        "name: h2-skill\n"
+        "description: A long enough description for the frontmatter check to be satisfied.\n"
+        "---\n\n"
+        "## Overview\n\nBody text that is comfortably past the forty character minimum.\n"
+    )
+    report = audit_file(p, AuditConfig.from_paths(tmp_path, profile="skillmd"))
+    body = [c for c in report.checks if c.name == "skillmd_body"][0]
+    assert body.severity == "pass", body.detail
+
+
+def test_fenced_bash_comment_is_not_a_skill_heading(tmp_path):
+    p = tmp_path / "SKILL.md"
+    p.write_text(
+        "---\n"
+        "name: fenced-skill\n"
+        "description: A long enough description for the frontmatter check to be satisfied.\n"
+        "---\n\n"
+        "```bash\n# not a heading\n```\n\nBody text that is past the forty character minimum.\n"
+    )
+    report = audit_file(p, AuditConfig.from_paths(tmp_path, profile="skillmd"))
+    body = [c for c in report.checks if c.name == "skillmd_body"][0]
+    assert body.severity == "warn"
+    assert "heading" in body.detail
+
+
+# --- F-08: info severity never blocks ---------------------------------------
+
+
+def test_info_severity_does_not_affect_the_verdict():
+    from vet.engine import assemble_report
+    from vet.models import CheckResult
+
+    checks = [
+        CheckResult("a", "pass", 0.90, 0.90, "ok"),
+        CheckResult("b", "info", 0.10, 0.10, "advisory only"),
+    ]
+    report = assemble_report("t.md", "prompt", checks, AuditConfig.from_paths(Path(".")))
+    assert report.verdict == "PASS"
+    assert report.static_score == 100.0
+
+
+# --- F-12: missing paths are reported, not dropped --------------------------
+
+
+def test_missing_path_is_reported_and_exits_three(tmp_path, capsys):
+    good = FIXTURES / "pass_brief.md"
+    code = cli_main([str(good), str(tmp_path / "absent.md"), "--profile", "brief"])
+    assert code == 3
+    assert "does not exist" in capsys.readouterr().err
+
+
+# --- F-16: --json is a single valid document --------------------------------
+
+
+def test_multi_file_json_is_one_valid_document(tmp_path, capsys):
+    import json
+
+    a = tmp_path / "a.md"
+    b = tmp_path / "b.md"
+    body = "# Overview\n\nSome text.\n\n## Sources\n\n- [x](https://example.com)\n"
+    a.write_text(body)
+    b.write_text(body)
+    cli_main([str(tmp_path), "--profile", "minimal", "--json"])
+    json.loads(capsys.readouterr().out)
+
+
+# --- F-17: build and dependency directories are skipped ---------------------
+
+
+def test_venv_contents_are_not_audited(tmp_path, capsys):
+    (tmp_path / ".venv" / "lib").mkdir(parents=True)
+    (tmp_path / ".venv" / "lib" / "junk.md").write_text("# Junk\n")
+    (tmp_path / "real").mkdir()
+    (tmp_path / "real" / "ok.md").write_text("# Overview\n\nText.\n")
+    cli_main([str(tmp_path), "--profile", "minimal"])
+    assert "junk.md" not in capsys.readouterr().out
+
+
+# --- F-19: declared but unmounted federation aliases ------------------------
+
+
+def _alias_workspace(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text(
+        "# Test\n\n## Related Wikis\n\n"
+        "| Alias | Path | Visibility | Description |\n"
+        "|-------|------|------------|-------------|\n"
+        "| `osint-wiki` | `/nonexistent/sibling/wiki/` | Private | not mounted |\n"
+    )
+
+
+def test_declared_but_unmounted_alias_is_not_dangling(tmp_path):
+    _alias_workspace(tmp_path)
+    config = AuditConfig.from_paths(tmp_path, profile="minimal")
+    result = check_crosslinks("See @osint-wiki/sources/foo.md.", config)
+    assert result.severity == "pass"
+    assert "not mounted" in result.detail
+
+
+def test_undeclared_missing_link_still_vetoes(tmp_path):
+    config = AuditConfig.from_paths(tmp_path, profile="minimal")
+    result = check_crosslinks("See @briefs/missing.md.", config)
+    assert result.severity == "veto"

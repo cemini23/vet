@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-Severity = Literal["pass", "warn", "veto"]
+Severity = Literal["pass", "info", "warn", "veto"]
 Verdict = Literal["PASS", "WARN", "REJECT", "ERROR"]
 
 

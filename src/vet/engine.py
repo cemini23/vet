@@ -32,6 +32,8 @@ def assemble_report(
     earned = sum(c.score_earned for c in checks)
     static_score = round((earned / total_weight) * 100, 1) if total_weight else 0.0
 
+    # "info" findings are advisory by design: they never affect the verdict, and
+    # checks that emit them award full weight so the score is not reduced either.
     if veto_gates:
         verdict = "REJECT"
         summary = f"REJECT — {len(veto_gates)} veto gate(s) triggered. Score irrelevant."

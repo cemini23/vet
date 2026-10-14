@@ -30,7 +30,7 @@ def load_wiki_aliases(root: Path) -> dict[str, tuple[Path, ...]]:
     if not claude_md.is_file():
         return aliases
     try:
-        text = claude_md.read_text(errors="replace")
+        text = claude_md.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return aliases
     for match in _ALIAS_ROW_RE.finditer(text):
@@ -46,6 +46,26 @@ def load_wiki_aliases(root: Path) -> dict[str, tuple[Path, ...]]:
     return aliases
 
 
+def load_declared_aliases(root: Path) -> set[str]:
+    """Every alias named in CLAUDE.md, whether or not its directory exists here.
+
+    A single-repo CI checkout has no sibling wiki on disk. Those aliases are
+    declared and legitimate, so a link that uses one must not read as dangling.
+    """
+    claude_md = root / "CLAUDE.md"
+    if not claude_md.is_file():
+        return set()
+    try:
+        text = claude_md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    return {
+        m.group("alias").strip()
+        for m in _ALIAS_ROW_RE.finditer(text)
+        if m.group("alias").strip()
+    }
+
+
 @dataclass
 class AuditConfig:
     root: Path
@@ -56,17 +76,29 @@ class AuditConfig:
     pass_threshold: float = 80.0
     # Appended last so external positional callers keep their argument order.
     wiki_aliases: dict[str, tuple[Path, ...]] = field(default_factory=dict)
+    unmounted_aliases: set[str] = field(default_factory=set)
 
-    def resolve_link(self, rel_path: str) -> bool:
+    def link_status(self, rel_path: str) -> str:
+        """Return "ok", "unmounted", or "missing" for one @path reference.
+
+        "unmounted" means the link names a declared federation alias whose
+        sibling repo is not checked out here. That is expected on CI, where only
+        one repo exists, so it is not a defect.
+        """
         for base in self.link_dirs:
             if (base / rel_path).is_file():
-                return True
+                return "ok"
         alias, sep, rest = rel_path.partition("/")
         if sep and rest:
             for base in self.wiki_aliases.get(alias, ()):
                 if (base / rest).is_file():
-                    return True
-        return False
+                    return "ok"
+            if alias in self.unmounted_aliases:
+                return "unmounted"
+        return "missing"
+
+    def resolve_link(self, rel_path: str) -> bool:
+        return self.link_status(rel_path) == "ok"
 
     @classmethod
     def from_paths(
@@ -90,5 +122,8 @@ class AuditConfig:
                 seen.add(d)
                 unique.append(d)
         if kwargs.get("wiki_aliases") is None:
-            kwargs["wiki_aliases"] = load_wiki_aliases(root)
+            mounted = load_wiki_aliases(root)
+            kwargs["wiki_aliases"] = mounted
+            if kwargs.get("unmounted_aliases") is None:
+                kwargs["unmounted_aliases"] = load_declared_aliases(root) - set(mounted)
         return cls(root=root, link_dirs=unique, **kwargs)

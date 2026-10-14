@@ -36,6 +36,13 @@ PROFILES: dict[str, list[str]] = {
         "skillmd_metadata",
         "skillmd_prose",
     ],
+    "prompt": [
+        "prompt_body",
+        "crosslinks",
+        "prose_quality",
+        "frontmatter",
+        "needs_verification_freshness",
+    ],
 }
 
 
@@ -127,6 +134,11 @@ def _abstract_synthesis(text, sections, target, config):
     return base.check_abstract_synthesis(text, target)
 
 
+def _prompt_body(text, sections, target, config):
+    del sections, target, config
+    return base.check_prompt_body(text)
+
+
 def _skillmd_frontmatter(text, sections, target, config):
     del sections, target, config
     return skillmd.check_skillmd_frontmatter(text)
@@ -161,6 +173,7 @@ _CHECK_DISPATCH = {
     "phasing": _phasing,
     "claim_evidence": _claim_evidence,
     "abstract_synthesis": _abstract_synthesis,
+    "prompt_body": _prompt_body,
     "skillmd_frontmatter": _skillmd_frontmatter,
     "skillmd_body": _skillmd_body,
     "skillmd_metadata": _skillmd_metadata,

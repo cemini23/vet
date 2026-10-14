@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from vet.checks._regex import SKILL_NAME_RE
-from vet.checks.base import check_prose_quality
+from vet.checks.base import check_prose_quality, strip_code
 from vet.models import CheckResult
 
 _FM_END_RE = re.compile(r"\n---[ \t]*\r?\n")
@@ -133,8 +133,9 @@ def check_skillmd_frontmatter(text: str) -> CheckResult:
 
 
 def check_skillmd_body(text: str) -> CheckResult:
-    fm_end = text.find("\n---\n", 4)
-    if fm_end == -1:
+    normalized = text.replace("\r\n", "\n")
+    end = _FM_END_RE.search(normalized, 3)
+    if end is None:
         return CheckResult(
             name="skillmd_body",
             severity="veto",
@@ -143,7 +144,7 @@ def check_skillmd_body(text: str) -> CheckResult:
             detail="Cannot locate skill body after frontmatter",
             veto_reason="Operational Stability — SKILL.md has no parseable body",
         )
-    body = text[fm_end + 5 :].strip()
+    body = normalized[end.end() :].strip()
     if len(body) < 40:
         return CheckResult(
             name="skillmd_body",
@@ -152,13 +153,14 @@ def check_skillmd_body(text: str) -> CheckResult:
             score_earned=0.05,
             detail=f"Skill body is very short ({len(body)} chars)",
         )
-    if not re.search(r"^#\s+\S", body, re.MULTILINE):
+    # H2 is an accepted opener, and a bash comment inside a fence is not a heading.
+    if not re.search(r"^#{1,2}\s+\S", strip_code(body), re.MULTILINE):
         return CheckResult(
             name="skillmd_body",
             severity="warn",
             score_weight=0.25,
             score_earned=0.15,
-            detail="Skill body has no top-level markdown heading (# Title)",
+            detail="Skill body has no markdown heading (# Title or ## Section)",
         )
     return CheckResult(
         name="skillmd_body",

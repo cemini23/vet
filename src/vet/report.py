@@ -23,7 +23,7 @@ def render_text(report: AuditReport) -> str:
         lines.append("")
     lines.append("CHECKS:")
     for c in report.checks:
-        glyph = {"pass": "+", "warn": "!", "veto": "x"}[c.severity]
+        glyph = {"pass": "+", "info": "i", "warn": "!", "veto": "x"}[c.severity]
         lines.append(f"  {glyph} [{c.severity.upper():4}] {c.name}: {c.detail}")
         for e in c.evidence[:5]:
             lines.append(f"      - {e}")
@@ -35,3 +35,7 @@ def render_text(report: AuditReport) -> str:
 
 def render_json(report: AuditReport) -> str:
     return json.dumps(asdict(report), indent=2)
+
+
+def render_json_many(reports: list[AuditReport]) -> str:
+    return json.dumps([asdict(r) for r in reports], indent=2)
