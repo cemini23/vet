@@ -96,7 +96,9 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     worst = 0
-    exit_map = {"PASS": 0, "WARN": 1, "REJECT": 2, "ERROR": 3}
+    # pre-commit and GitHub Actions treat any non-zero exit as a failure, so a
+    # non-strict WARN must not block. --strict already turns warnings into REJECT.
+    exit_map = {"PASS": 0, "WARN": 2 if args.strict else 0, "REJECT": 2, "ERROR": 3}
 
     for path in files:
         profile = _detect_profile(path, args.profile)
@@ -105,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         config = replace(config_base, profile=profile)
         try:
             report = audit_file(path, config)
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             print(f"ERROR: could not read {path}: {exc}", file=sys.stderr)
             worst = max(worst, 3)
             continue

@@ -34,8 +34,21 @@ from vet.config import AuditConfig
 from vet.models import CheckResult
 
 
+_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+
+def strip_code(text: str) -> str:
+    """Drop fenced blocks and inline code spans.
+
+    Content checks run on the result, so documentation examples, bash comments
+    and literal `@path.md` samples are not read as real prose or real links.
+    """
+    return _INLINE_CODE_RE.sub("", _FENCE_RE.sub("\n", text))
+
+
 def parse_document(text: str) -> list[str]:
-    return SECTION_HEAD_RE.findall(text)
+    return SECTION_HEAD_RE.findall(strip_code(text))
 
 
 def check_required_sections(
@@ -88,7 +101,7 @@ def check_required_sections(
 
 
 def check_crosslinks(text: str, config: AuditConfig) -> CheckResult:
-    matches = CROSSLINK_RE.findall(text)
+    matches = CROSSLINK_RE.findall(strip_code(text))
     if not matches:
         return CheckResult(
             name="crosslinks",
@@ -202,8 +215,9 @@ def check_needs_verification(
 
 
 def check_prose_quality(text: str) -> CheckResult:
-    emojis = EMOJI_RE.findall(text)
-    todos = TODO_RE.findall(text)
+    prose = strip_code(text)
+    emojis = EMOJI_RE.findall(prose)
+    todos = TODO_RE.findall(prose)
     issues = []
     if emojis:
         issues.append(f"{len(emojis)} emoji character(s)")

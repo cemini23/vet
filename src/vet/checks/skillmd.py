@@ -7,14 +7,27 @@ from vet.checks.base import check_prose_quality
 from vet.models import CheckResult
 
 
+_FM_END_RE = re.compile(r"\n---[ \t]*\r?\n")
+_BLOCK_SCALAR = {">", ">-", ">+", "|", "|-", "|+"}
+
+
+def _clean_scalar(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    return value
+
+
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str | None]:
-    if not text.startswith("---\n"):
+    text = text.replace("\r\n", "\n")
+    if not text.startswith("---"):
         return {}, "missing opening ---"
-    fm_end = text.find("\n---\n", 4)
-    if fm_end == -1:
+    end = _FM_END_RE.search(text, 3)
+    if end is None:
         return {}, "missing closing ---"
-    block = text[4:fm_end]
+    block = text[3:end.start()]
     fields: dict[str, str] = {}
+    parents: dict[int, str] = {}
     current_key: str | None = None
     current_lines: list[str] = []
 
@@ -25,18 +38,31 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str | None]:
         current_key = None
         current_lines = []
 
-    for line in block.splitlines():
-        if not line.strip():
+    for raw in block.splitlines():
+        line = raw.rstrip()
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        if line.startswith("  ") and current_key is not None:
-            current_lines.append(line.strip())
+        indent = len(line) - len(line.lstrip(" "))
+        if current_key is not None and indent > 0:
+            current_lines.append(stripped)   # block scalar or list body
+            continue
+        key, sep, value = stripped.partition(":")
+        if not sep:
             continue
         flush()
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        current_key = key.strip()
-        current_lines = [value.strip()]
+        key = _clean_scalar(key)
+        value = value.strip()
+        prefix = parents.get(indent - 2, "") if indent >= 2 else ""
+        for level in [lvl for lvl in parents if lvl >= indent]:
+            del parents[level]
+        full = f"{prefix}.{key}" if prefix else key
+        if value in _BLOCK_SCALAR:
+            current_key = full               # following lines carry the value
+        elif value:
+            fields[full] = _clean_scalar(value)
+        else:
+            parents[indent] = full           # nested mapping follows
     flush()
     return fields, None
 

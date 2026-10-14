@@ -28,7 +28,9 @@ def assemble_report(
     config: AuditConfig,
 ) -> AuditReport:
     veto_gates = [c.veto_reason for c in checks if c.severity == "veto" and c.veto_reason]
-    static_score = round(sum(c.score_earned for c in checks) * 100, 1)
+    total_weight = sum(c.score_weight for c in checks)
+    earned = sum(c.score_earned for c in checks)
+    static_score = round((earned / total_weight) * 100, 1) if total_weight else 0.0
 
     if veto_gates:
         verdict = "REJECT"
