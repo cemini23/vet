@@ -17,7 +17,10 @@ from vet.engine import audit_file
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _skill(name: str, body: str, meta: str = "license: MIT\nmetadata:\n  author: cemini23\n  version: \"1.0.0\"") -> str:
+_DEFAULT_META = 'license: MIT\nmetadata:\n  author: cemini23\n  version: "1.0.0"'
+
+
+def _skill(name: str, body: str, meta: str = _DEFAULT_META) -> str:
     return (
         "---\n"
         f"name: {name}\n"

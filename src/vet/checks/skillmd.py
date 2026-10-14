@@ -6,7 +6,6 @@ from vet.checks._regex import SKILL_NAME_RE
 from vet.checks.base import check_prose_quality
 from vet.models import CheckResult
 
-
 _FM_END_RE = re.compile(r"\n---[ \t]*\r?\n")
 _BLOCK_SCALAR = {">", ">-", ">+", "|", "|-", "|+"}
 

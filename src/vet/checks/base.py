@@ -33,7 +33,6 @@ from vet.checks._regex import (
 from vet.config import AuditConfig
 from vet.models import CheckResult
 
-
 _FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
 _INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 
