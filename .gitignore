@@ -8,3 +8,7 @@ venv/
 .pytest_cache/
 .ruff_cache/
 *.egg
+
+# Federation Cursor skills are synced into every workspace. `vet` is a published
+# package, so anything tracked here lands in the PyPI sdist. Never commit this.
+.cursor/

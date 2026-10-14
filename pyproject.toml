@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-vet"
-version = "0.3.1"
+version = "0.3.2"
 description = "Static veto-gate auditor for agent skills, briefs, and prompts"
 readme = "README.md"
 license = "MIT"
@@ -25,6 +25,20 @@ dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vet"]
+
+# Without an explicit list, hatchling packages every git-tracked file into the
+# sdist. That shipped the synced .cursor/ skill tree (94 files) to PyPI.
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/docs",
+  "/examples",
+  "/README.md",
+  "/LICENSE",
+  "/action.yml",
+  "/pyproject.toml",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4"]
